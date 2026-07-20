@@ -1,4 +1,5 @@
 --!strict
+--discord: .tgl. | roblox: iamgreat400
 
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
@@ -31,7 +32,7 @@ const treeMinDistance = 3
 local seed = math.random(-math.huge, math.huge)
 local random = Random.new(seed)
 
--- biome thresholds 
+-- biome thresholds
 const seaLevel = 0.15
 const sandLevel = 0.25
 const grassLevel = 0.55
@@ -54,14 +55,14 @@ const gridCenterZ = math.floor(size / 2)
 -- stores per-column terrain height data
 type ColumnData = {
 	normalizedHeight: number,
-	blockHeight: number
+	blockHeight: number,
 }
 
 -- full 2D heightmap cache for fast lookup during generation
 type TerrainMap = {
 	[number]: {
-		[number]: ColumnData
-	}
+		[number]: ColumnData,
+	},
 }
 
 -- runtime data passed through voxel generation pipeline
@@ -72,7 +73,7 @@ type BlockData = {
 	voxelZ: number,
 	normalizedHeight: number,
 	blockHeight: number,
-	heightLevel: number?
+	heightLevel: number?,
 }
 
 -- atmospheric effect added globally for visual depth/fog
@@ -132,21 +133,17 @@ local function applyBiomeColor(normalizedHeight: number, blockData: BlockData, b
 		-- ocean biome
 		part.Color = Color3.fromRGB(0, 0, 255)
 		blockData.heightLevel = seaLevel
-
 	elseif normalizedHeight < sandLevel then
 		-- beach biome
 		part.Color = Color3.fromRGB(237, 201, 175)
 		blockData.heightLevel = sandLevel
-
 	elseif normalizedHeight < grassLevel then
 		-- grass biome with variation
 		applyGrassVariation(blockData)
-
 	elseif normalizedHeight < mountainTopLevel then
 		-- rocky terrain biome
 		part.Color = Color3.fromRGB(128, 128, 128)
 		blockData.heightLevel = mountainTopLevel
-
 	else
 		-- snow bime
 		part.Color = Color3.fromRGB(255, 255, 255)
@@ -165,7 +162,7 @@ for worldX = 1, size do
 
 		map[worldX][worldZ] = {
 			normalizedHeight = normalizedHeight,
-			blockHeight = blockHeight
+			blockHeight = blockHeight,
 		}
 	end
 end
@@ -192,7 +189,6 @@ end
 -- handles procedural tree spawning using noise + probability filters
 -- ensures biome correctness and spacing constraints
 local function determineTreeSpawn(worldX: number, worldZ: number, block: Part, height: number, targetCFrame: CFrame): boolean
-
 	local sampleX = (worldX + 0.1) / frequency
 	local sampleZ = (worldZ + 0.1) / frequency
 
@@ -200,11 +196,21 @@ local function determineTreeSpawn(worldX: number, worldZ: number, block: Part, h
 	local normalizedProbability = math.clamp(rawProbability + 0.5, 0, 1)
 
 	-- validate spawn conditions
-	if not (normalizedProbability > treeThreshold) then return false end
-	if math.random() > treeDensity then return false end
-	if height <= seaLevel then return false end
-	if height <= sandLevel then return false end
-	if height >= mountainTopLevel then return false end
+	if not (normalizedProbability > treeThreshold) then
+		return false
+	end
+	if math.random() > treeDensity then
+		return false
+	end
+	if height <= seaLevel then
+		return false
+	end
+	if height <= sandLevel then
+		return false
+	end
+	if height >= mountainTopLevel then
+		return false
+	end
 
 	-- spawn tree model at calculated surface position
 	local tree: Model = treeModel:Clone()
@@ -234,15 +240,60 @@ local function getNeighborTrees(worldX: number, worldZ: number, hasTree: (number
 	return neighboringTrees
 end
 
+-- creates the physical voxel part for a given grid position
+local function createBlockPart(targetCFrame: CFrame): Part
+	local block: Part = Instance.new("Part")
+	block.Anchored = true
+	block.Size = Vector3.new(blockSize, blockSize, blockSize)
+	block.CFrame = targetCFrame
+
+	return block
+end
+
+-- attempts to spawn a tree on a surface block, respecting spacing rules
+-- returns true if a tree was placed
+local function trySpawnTree(blockData: BlockData, targetCFrame: CFrame, treeGrid: { [number]: { [number]: boolean } }, hasTree: (number, number) -> (boolean)): boolean
+	local neighborTreesList = getNeighborTrees(blockData.voxelX, blockData.voxelZ, hasTree)
+	local tooClose = table.find(neighborTreesList, true) ~= nil
+
+	if tooClose then
+		return false
+	end
+
+	local spawned = determineTreeSpawn(
+		blockData.voxelX,
+		blockData.voxelZ,
+		blockData.part,
+		blockData.normalizedHeight,
+		targetCFrame
+	)
+
+	if not spawned then
+		return false
+	end
+
+	if not treeGrid[blockData.voxelX] then
+		treeGrid[blockData.voxelX] = {}
+	end
+
+	treeGrid[blockData.voxelX][blockData.voxelZ] = true
+	return true
+end
+
+-- handles surface-only logic: tree spawning and water filling
+local function handleSurfaceBlock(blockData: BlockData, targetCFrame: CFrame, treeGrid: { [number]: { [number]: boolean } }, hasTree: (number, number) -> (boolean))
+	trySpawnTree(blockData, targetCFrame, treeGrid, hasTree)
+	applyWater(blockData)
+end
+
 -- main voxel generation pipeline
 -- builds world column-by-column with surface optimization
 local function generateVoxels()
-
 	local spawnedParts: { Part } = {}
 	local spawnedCFrames: { CFrame } = {}
 
 	-- tracks tree placement for spacing rules
-	local treeGrid: {[number]: { [number]: boolean }} = {}
+	local treeGrid: { [number]: { [number]: boolean } } = {}
 
 	local function hasTree(x: number, z: number): boolean
 		if x < 1 or x > size or z < 1 or z > size then
@@ -255,76 +306,51 @@ local function generateVoxels()
 	-- iterate full terrain grid
 	for worldX = 1, size do
 		for worldZ = 1, size do
-
 			local column: ColumnData = map[worldX][worldZ]
 
 			-- generate voxel column from surface downward
 			for blockY = column.blockHeight, 0, -1 do
-
 				local isWithinRenderDepth = blockY >= column.blockHeight - renderDepth
 
-				-- only generate near surface layers 
-				if isWithinRenderDepth then
-
-					local block: Part = Instance.new("Part")
-					block.Anchored = true
-					block.Size = Vector3.new(blockSize, blockSize, blockSize)
-
-					local targetCFrame = CFrame.new(
-						worldX * blockSize,
-						blockY * blockSize,
-						worldZ * blockSize
-					)
-
-					block.CFrame = targetCFrame
-
-					local depth = column.blockHeight - blockY
-
-					local blockData: BlockData = {
-						part = block,
-						voxelX = worldX,
-						voxelY = blockY,
-						voxelZ = worldZ,
-						normalizedHeight = column.normalizedHeight,
-						blockHeight = column.blockHeight,
-					}
-
-					-- surface only logic
-					if blockData.voxelY == blockData.blockHeight then
-
-						local neighborTreesList = getNeighborTrees(blockData.voxelX, blockData.voxelZ, hasTree)
-						local tooClose = table.find(neighborTreesList, true) ~= nil
-
-						if not tooClose then
-							if determineTreeSpawn(
-								blockData.voxelX,
-								blockData.voxelZ,
-								blockData.part,
-								blockData.normalizedHeight,
-								targetCFrame
-							) then
-								if not treeGrid[blockData.voxelX] then
-									treeGrid[blockData.voxelX] = {}
-								end
-
-								treeGrid[blockData.voxelX][blockData.voxelZ] = true
-							end
-						end
-
-						applyWater(blockData)
-					end
-
-					-- applies biome coloring for surface rendering
-					applyBiomeColor(blockData.normalizedHeight, blockData, blockY)
-
-					table.insert(spawnedParts, blockData.part)
-					table.insert(spawnedCFrames, targetCFrame)
+				-- only generate near surface layers
+				if not isWithinRenderDepth then
+					continue
 				end
+
+				local targetCFrame = CFrame.new(
+					worldX * blockSize,
+					blockY * blockSize,
+					worldZ * blockSize
+				)
+
+				local block: Part = createBlockPart(targetCFrame)
+
+				local depth = column.blockHeight - blockY
+
+				local blockData: BlockData = {
+					part = block,
+					voxelX = worldX,
+					voxelY = blockY,
+					voxelZ = worldZ,
+					normalizedHeight = column.normalizedHeight,
+					blockHeight = column.blockHeight,
+				}
+
+				-- surface only logic
+				if blockData.voxelY == blockData.blockHeight then
+					handleSurfaceBlock(blockData, targetCFrame, treeGrid, hasTree)
+				end
+
+				-- applies biome coloring for surface rendering
+				applyBiomeColor(blockData.normalizedHeight, blockData, blockY)
+
+				table.insert(spawnedParts, blockData.part)
+				table.insert(spawnedCFrames, targetCFrame)
 			end
 		end
 	end
 
-	workspace:BulkMoveTo(spawnedParts :: {Instance}, spawnedCFrames, Enum.BulkMoveMode.FireAllEvents)
+	workspace:BulkMoveTo(spawnedParts :: { Instance }, spawnedCFrames, Enum.BulkMoveMode.FireAllEvents)
 
 	for _, block: Part in spawnedParts do
 		block.Parent = terrainFolder
