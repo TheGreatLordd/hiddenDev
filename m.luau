@@ -1,4 +1,5 @@
 --!strict
+--discord: .tgl. | roblox: iamgreat400
 const Players = game:GetService("Players")
 const ReplicatedStorage = game:GetService("ReplicatedStorage")
 const Constants = require("../../Enums/Constants")
@@ -45,7 +46,7 @@ const AIMING_FOV = 55
 
 const HEADSHOT_DAMAGE_MULT = 1.5
 
---constructor for weapon object
+--Constructor for the weapon object that creates the weapon and assigns its stats based on weapondata
 function Weapon.new(weaponData: WeaponData, player: Player): Weapon
 
     const self = setmetatable(table.clone(weaponData), Weapon) :: any 
@@ -70,7 +71,7 @@ function Weapon.new(weaponData: WeaponData, player: Player): Weapon
     return (self :: any) :: Weapon
 end
 
---resolve the character from the person hit
+--function that resolves the character from the person hit
 const function getCharacterFromHit(instance: Instance): Model?
     if not instance or instance == workspace then return nil end 
 
@@ -81,7 +82,7 @@ const function getCharacterFromHit(instance: Instance): Model?
     return getCharacterFromHit((instance.Parent) :: Instance)
 end
 
---function to shoot the weapon
+--function that determines if its valid to shoot the weapon, calculates if it should or not, and then raycasts to hit them and apply damage
 function Weapon.Use(self: Weapon, rayOrigin: Vector3, rayDirection: Vector3)
     local plr = self.player
 
@@ -153,7 +154,7 @@ function Weapon.Use(self: Weapon, rayOrigin: Vector3, rayDirection: Vector3)
     print(`{plr.Name} hit {playerHit.Name} for {damage}. They now have {targetHumanoid.Health} health. Last shot: {self._lastUsed}, currently on cooldown: {Item.Use(self)}`)
     return true
 end
---set ammo of current weapon
+--function that sets the ammo within the weapondata of the object
 function Weapon._SetAmmo(self: Weapon, newAmmo: number)
     self._currentAmmo = math.clamp(newAmmo, 0, self.maxAmmo)
 
@@ -169,7 +170,7 @@ function Weapon.Reload(self: Weapon)
     self:_SetAmmo(self.maxAmmo)
 end
 
---aims the weapon and changes the FOV to indicate theyre aiming
+--function that aims the weapon and changes the FOV to indicate theyre aiming
 function Weapon.Aim(self: Weapon, toggle: boolean)
     local plr = self.player
     if not self._equipped then return end
@@ -188,7 +189,7 @@ function Weapon.Aim(self: Weapon, toggle: boolean)
     }, plr)
 end
 
---equips the weapon (model) as a motor6d
+--function that physically equips the model (using a motor6d) , applies equip cooldown, 
 function Weapon.Equip(self: Weapon)
     local player = self.player
     print(`weapon manager: plr equippijng for: {player.Name}`)
@@ -231,7 +232,8 @@ function Weapon.Equip(self: Weapon)
     --assign the motor6d to the object
     self._motor6D = motor6
 end
---unequip the weapon state, and destroy the motor6d. Notify the client
+
+--unequips the weapon state, and destroy the motor6d. Notify the client
 function Weapon.Unequip(self: Weapon)
     self._equipped = false 
 
