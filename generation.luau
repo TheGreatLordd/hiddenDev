@@ -65,7 +65,7 @@ type TerrainMap = {
 	},
 }
 
--- runtime data passed through voxel generation pipeline
+-- runtime data passed through voxel generation 
 type BlockData = {
 	part: Part,
 	voxelX: number,
@@ -151,7 +151,7 @@ local function applyBiomeColor(normalizedHeight: number, blockData: BlockData, b
 	end
 end
 
--- precomputes full terrain heightmap for fast voxel lookup
+-- precomputes full terrain heightmap for  voxel lookup
 local map: TerrainMap = {}
 
 for worldX = 1, size do
