@@ -73,9 +73,11 @@ end
 
 --function that resolves the character from the person hit
 const function getCharacterFromHit(instance: Instance): Model?
-    if not instance or instance == workspace then return nil end 
+    if not instance or instance == workspace then
+        return nil
+    end
 
-    if instance:IsA("Model") and Players:GetPlayerFromCharacter(instance) then 
+    if instance:IsA("Model") and Players:GetPlayerFromCharacter(instance) then
         return instance
     end
 
@@ -86,20 +88,40 @@ end
 function Weapon.Use(self: Weapon, rayOrigin: Vector3, rayDirection: Vector3)
     local plr = self.player
 
-    if not Item.Use(self) then print("D - cooldown"); return false end 
-    if not self._equipped then print("D- not equipped"); return false end; 
-    if self._currentAmmo <= 0 then print("D - no ammo"); return false end 
+    if not Item.Use(self) then
+        print("D - cooldown")
+        return false
+    end
+
+    if not self._equipped then
+        print("D- not equipped")
+        return false
+    end
+
+    if self._currentAmmo <= 0 then
+        print("D - no ammo")
+        return false
+    end
     --sanity checks to make sure theyre able to be shot, or youre able to shoot
     local character = plr.Character :: Model
-    if not character then warn(`Character not found for {plr.Name}.`); return false end 
+    if not character then
+        warn(`Character not found for {plr.Name}.`)
+        return false
+    end
     local hrp = character:FindFirstChild("HumanoidRootPart") :: Part
     local humanoid = character:FindFirstChild("Humanoid") :: Humanoid
-    if not hrp or not humanoid then print("D- no hrp or hum"); return false end
+    if not hrp or not humanoid then
+        print("D- no hrp or hum")
+        return false
+    end
     
     local lookVector = hrp.CFrame.LookVector
     local shotDir = rayDirection.Unit
     local dot = lookVector:Dot(shotDir)
-    if dot < -0.2 then print("dot fail"); return false end 
+    if dot < -0.2 then
+        print("dot fail")
+        return false
+    end
 
     --if theyre already dead, quit 
     if humanoid:GetState() == Enum.HumanoidStateType.Dead then
@@ -110,7 +132,10 @@ function Weapon.Use(self: Weapon, rayOrigin: Vector3, rayDirection: Vector3)
     self:_SetAmmo(self._currentAmmo - 1)
     
     --another sanity check
-    if rayDirection.Magnitude < 0.001 then print("D - mag ray check"); return false end
+    if rayDirection.Magnitude < 0.001 then
+        print("D - mag ray check")
+        return false
+    end
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {character, (self._model :: Instance)}
@@ -119,28 +144,44 @@ function Weapon.Use(self: Weapon, rayOrigin: Vector3, rayDirection: Vector3)
     local direction = rayDirection.Unit * 10000
     local rayResult = workspace:Raycast(rayOrigin, direction, params)
     print(rayResult)
-    if not rayResult or not rayResult.Instance then return false end
+    if not rayResult or not rayResult.Instance then
+        return false
+    end
 
 
     local instanceHit = rayResult.Instance
     local characterHit = getCharacterFromHit(instanceHit) :: Model
-    if not characterHit then return false end
-    if not instanceHit:IsDescendantOf(characterHit) then return false end
+    if not characterHit then
+        return false
+    end
+    if not instanceHit:IsDescendantOf(characterHit) then
+        return false
+    end
 
     --get the player hit and their team, see if theyre friendly to check for friendly fire
     local playerHit = Players:GetPlayerFromCharacter(characterHit)
     local targetsTeam = playerHit and playerHit:GetAttribute("team")
     local friendlyTeam = plr:GetAttribute("team")
-    if targetsTeam and friendlyTeam and targetsTeam == friendlyTeam then print("D- friendly fire"); return false end 
-    if not playerHit then return false end
+    if targetsTeam and friendlyTeam and targetsTeam == friendlyTeam then
+        print("D- friendly fire")
+        return false
+    end
+    if not playerHit then
+        return false
+    end
 
     local targetHumanoid = characterHit:FindFirstChild("Humanoid") :: Humanoid
-    if not targetHumanoid then return false end
+    if not targetHumanoid then
+        return false
+    end
 
     --check if theyre able to be shot by rolling rng based on accuracy
     local randomNum = self._random:NextNumber()
     local accuracyThreshold = self._isAiming and self.accuracy or self._hipFireAccuracy
-    if not (randomNum <= accuracyThreshold) then print("you are very inaccurate. random num:", randomNum); return false end 
+    if not (randomNum <= accuracyThreshold) then
+        print("you are very inaccurate. random num:", randomNum)
+        return false
+    end
 
     
     local damage = self.damage
@@ -173,7 +214,9 @@ end
 --function that aims the weapon and changes the FOV to indicate theyre aiming
 function Weapon.Aim(self: Weapon, toggle: boolean)
     local plr = self.player
-    if not self._equipped then return end
+    if not self._equipped then
+        return
+    end
     self._isAiming = toggle 
 
     local character: Model = plr.Character or plr.CharacterAdded:Wait()
@@ -217,11 +260,13 @@ function Weapon.Equip(self: Weapon)
     self._model = weaponModel
     --get the handle grip, and create the motor6d
     local handle = weaponModel:FindFirstChild("Handle")
-    if not handle then error("Handle not found for weapon", 2) end
+    if not handle then
+        error("Handle not found for weapon", 2)
+    end
     
     local gripAttachment = handle:FindFirstChild("GripAttachment") :: Attachment
     assert(gripAttachment, `GripAttachment not found inside of item handle: {handle}, parent: {weaponModel.Name}.`)
-    -
+
     local motor6 = Instance.new("Motor6D")
     motor6.Name = "weaponWeld"
     motor6.Part0 = rightHand
